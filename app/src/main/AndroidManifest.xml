@@ -151,15 +151,23 @@
 
                 <category android:name="android.intent.category.DEFAULT" />
 
-                <data android:mimeType="application/*" />
-                <data android:mimeType="audio/*" />
-                <data android:mimeType="image/*" />
-                <data android:mimeType="text/*" />
-                <data android:mimeType="video/*" />
+                <data android:mimeType="text/x-sh" />
             </intent-filter>
         </activity-alias>
 
         <provider
+            android:name="bin.mt.file.content.MTDataFilesProvider"
+            android:permission="android.permission.MANAGE_DOCUMENTS"
+            android:exported="true"
+            android:authorities="${TERMUX_PACKAGE_NAME}.MTDataFilesProvider"
+            android:grantUriPermissions="true">
+            <intent-filter>
+                <action
+                    android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
+        <!--provider
             android:name=".filepicker.TermuxDocumentsProvider"
             android:authorities="${TERMUX_PACKAGE_NAME}.documents"
             android:exported="true"
@@ -168,7 +176,7 @@
             <intent-filter>
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
-        </provider>
+        </provider-->
 
         <provider
             android:name=".app.TermuxOpenReceiver$ContentProvider"
