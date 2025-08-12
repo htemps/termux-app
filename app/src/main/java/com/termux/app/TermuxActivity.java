@@ -11,7 +11,9 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.IBinder;
+import android.text.TextUtils;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.Gravity;
@@ -65,6 +67,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.viewpager.widget.ViewPager;
 
+import java.io.File;
+import java.io.StringReader;
 import java.util.Arrays;
 
 /**
@@ -78,6 +82,14 @@ import java.util.Arrays;
  * about memory leaks.
  */
 public final class TermuxActivity extends AppCompatActivity implements ServiceConnection {
+
+    //需要执行的命令，每行代表一个命令
+    private static final String CMD_LINE_EXTRA = "cmd_line_extra";
+    //工作目录
+    private static final String WORK_DIR_EXTRA = "work_dir_extra";
+    //是否在新的控制台打开
+    private static final String NEW_SESSION_EXTRA = "new_session_extra";
+
 
     /**
      * The connection to the {@link TermuxService}. Requested in {@link #onCreate(Bundle)} with a call to
@@ -279,6 +291,66 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         TermuxUtils.sendTermuxOpenedBroadcast(this);
     }
 
+
+
+
+    private Intent mLastIntent;
+
+    public Intent lastIntent() {
+        return mLastIntent;
+    }
+
+    @Override
+    protected void onNewIntent(final Intent intent) {
+        if (intent != null && !intent.equals(mLastIntent)) {
+            handlerGradleCmdLine(intent);
+        }
+        super.onNewIntent(this.mLastIntent = intent);
+    }
+
+    private void handlerGradleCmdLine(Intent intent) {
+        final String workDirText = intent.getStringExtra(WORK_DIR_EXTRA);
+        final String cmdLineText = intent.getStringExtra(CMD_LINE_EXTRA);
+        if (TextUtils.isEmpty(workDirText) && TextUtils.isEmpty(cmdLineText)) {
+            return;
+        }
+        intent.removeExtra(WORK_DIR_EXTRA);
+        intent.removeExtra(CMD_LINE_EXTRA);
+
+        boolean newSession = intent.getBooleanExtra(NEW_SESSION_EXTRA,false);
+        intent.removeExtra(NEW_SESSION_EXTRA);
+        Toast.makeText(TermuxActivity.this, "New session: " + newSession, Toast.LENGTH_LONG).show();
+        if(newSession){
+            mTermuxTerminalSessionActivityClient.addNewSession(false, null);
+        }
+        //接收传入的命令并异步运行
+        mTerminalView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                String workDir = workDirText;
+                /*if (!new File(workDir).exists()) {
+                    workDir = Environment.getExternalStorageDirectory().getAbsolutePath();
+                }*/
+                TerminalSession currentSession = getCurrentSession();
+                if (currentSession == null) return;
+
+                //更改工作目录，防止有空格使用""包裹
+                currentSession.write("cd \"".concat(workDir).concat("\"\n"));
+                if(!TextUtils.isEmpty(cmdLineText)){
+                    String[] cmds = cmdLineText.split("\n");
+                    if(cmds != null){
+                        for (String cmd : cmds){
+                            currentSession.write(cmd.concat("\n"));
+                        }
+                    } else {
+                        currentSession.write(cmdLineText.concat("\n"));
+                    }
+                }
+            }
+        }, 200);
+    }
+
+
     @Override
     public void onStart() {
         super.onStart();
@@ -299,6 +371,11 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
             addTermuxActivityRootViewGlobalLayoutListener();
 
         registerTermuxActivityBroadcastReceiver();
+
+        //如果服务未连接，则不执行操作，稍后从onServiceConnected中执行
+        //用户按返回键退出和按home键退出的区别
+        if(mTermuxService != null)
+            onNewIntent(getIntent());
     }
 
     @Override
@@ -427,6 +504,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
 
         // Update the {@link TerminalSession} and {@link TerminalEmulator} clients.
         mTermuxService.setTermuxTerminalSessionClient(mTermuxTerminalSessionActivityClient);
+        onNewIntent(intent);
     }
 
     @Override
