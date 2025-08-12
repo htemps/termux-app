@@ -16,6 +16,7 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.ActionMode;
 import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
@@ -38,6 +39,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
 import com.termux.terminal.KeyHandler;
+import com.termux.terminal.Logger;
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.view.textselection.TextSelectionCursorController;
@@ -374,6 +376,32 @@ public final class TerminalView extends View {
                 KeyEvent deleteKey = new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL);
                 for (int i = 0; i < leftLength; i++) sendKeyEvent(deleteKey);
                 return super.deleteSurroundingText(leftLength, rightLength);
+            }
+
+            @Override
+            public boolean performContextMenuAction(int id) {
+                switch(id){
+                    case 16908322:
+                        onPaste();
+                        break;
+                }
+                return super.performContextMenuAction(id);
+            }
+
+            public String getClipboardText(Context context) {
+                try {
+                    ClipData primaryClip = ((ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE)).getPrimaryClip();
+                    if (primaryClip.getItemCount() > 0) {
+                        return primaryClip.getItemAt(0).getText().toString();
+                    }
+                } catch (Exception e) {
+                    Log.w("getClipboardText",e);
+                }
+                return "";
+            }
+
+            private void onPaste() {
+                commitText(getClipboardText(TerminalView.this.getContext()), 0);
             }
 
             void sendTextToTerminal(CharSequence text) {
